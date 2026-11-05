@@ -27,7 +27,7 @@
       </div>
       <div class="sidebar-tip">💡 点击地图添加记录，用颜色分类，翻阅你的旅行日志</div>
       <div id="record-list" class="record-list"></div>
-      <div class="sidebar-footer">数据保存在本浏览器（IndexedDB），刷新或重启浏览器都不丢失；换电脑前用「导出备份」带走全部数据</div>
+      <div class="sidebar-footer">数据保存在本浏览器（IndexedDB），刷新或重启浏览器都不丢失；登录仅用于身份展示，足迹数据不上传云端；换电脑前用「⬇ 导出」带走全部数据</div>
     </aside>
 
     <!-- 地图区域 -->
@@ -194,7 +194,7 @@
     </div>
     <div style="padding: 24px; text-align: center;">
       <p style="margin: 0 0 20px 0; color: #666; font-size: 14px;">
-        使用GitHub账号授权登录，足迹数据云端自动同步
+        使用 GitHub 账号授权登录。当前为本地模式：足迹数据只保存在本浏览器，不会上传到云端
       </p>
       <button id="btn-github-login" style="width: 100%; padding: 12px; background: #24292e; color: #fff; border: none; border-radius: 6px; font-size: 15px; cursor: pointer; font-weight: 500;">
         ⭐ 使用GitHub一键登录
@@ -250,7 +250,7 @@
   <script src="assets/vendor/leaflet/leaflet.js" onerror="this.onerror=null;this.src='https://unpkg.com/leaflet@1.9.4/dist/leaflet.js'"></script>
   <script src="assets/vendor/topojson/topojson-client.min.js" onerror="this.onerror=null;this.src='https://unpkg.com/topojson-client@3/dist/topojson-client.min.js'"></script>
   <script src="js/db.js?v=4"></script>
-  <script src="js/account.js?v=104"></script>
+  <script src="js/account.js?v=105"></script>
   <script src="js/app.js?v=19"></script>
 </body>
 </html>

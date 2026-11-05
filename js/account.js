@@ -7,9 +7,11 @@ window.Account = (function () {
   'use strict';
 
   // ===== 运行模式开关 =====
-  // false = 纯本地模式：数据只存 IndexedDB，隐藏登录与云同步入口（当前选择）。
-  // true  = 恢复云端同步：需配置好下方 Supabase 密钥并部署 wander-api Edge Function。
-  const CLOUD_ENABLED = false;
+  // CLOUD_ENABLED：是否启用 GitHub 登录（需要 Supabase 项目，仅用于身份验证）
+  // SYNC_ENABLED ：是否把记录同步到云端。false = 数据只留在本机 IndexedDB，
+  //                登录仅用于身份展示，不向任何服务器上传足迹数据。
+  const CLOUD_ENABLED = true;
+  const SYNC_ENABLED = false;
 
   // ====================== 👉这里改成你自己的值======================
   const SUPABASE_URL = "https://dxvyfkiachwawwsfhgve.supabase.co";
@@ -181,6 +183,10 @@ window.Account = (function () {
   }
   async function pushNow(silent) {
     if (!user || syncing) return false;
+    if (!SYNC_ENABLED) {
+      if (!silent && hooks.toast) hooks.toast('本地模式：数据只保存在本浏览器，不上传云端');
+      return false;
+    }
     try {
       var n = await pushSnapshot();
       if (!silent && hooks.toast) hooks.toast('已同步 ' + n + ' 条记录到云端');
@@ -192,13 +198,17 @@ window.Account = (function () {
     }
   }
   function pushSoon() {
-    if (!user) return;
+    if (!user || !SYNC_ENABLED) return;
     clearTimeout(pushTimer);
     pushTimer = setTimeout(function () { pushNow(true); }, 4000);
   }
-  // 登录后首次双向同步
+  // 登录后首次双向同步（本地模式下跳过，数据不离开本机）
   async function syncOnLogin() {
     if (syncing) return;
+    if (!SYNC_ENABLED) {
+      if (hooks.toast) hooks.toast('已登录（本地模式，足迹数据不上传云端）');
+      return;
+    }
     syncing = true;
     try {
       if (hooks.toast) hooks.toast('正在同步云端数据……');
@@ -229,7 +239,7 @@ window.Account = (function () {
       btn.title = '已登录：' + displayName;
     } else {
       btn.innerHTML = '<span class="account-wx-icon">👤</span> 登录 / 注册';
-      btn.title = '使用GitHub登录，云端同步足迹数据';
+      btn.title = '使用 GitHub 登录（本地模式：足迹数据不上传云端）';
     }
     if (menu) menu.classList.add('hidden');
   }
@@ -241,7 +251,7 @@ window.Account = (function () {
       const displayName = user.user_metadata?.name || user.email || 'GitHub用户';
       menu.innerHTML =
         '<div class="account-menu-head">' + esc(displayName) + '</div>' +
-        '<button type="button" id="acc-sync-now">⟳ 立即同步到云端</button>' +
+        '<button type="button" id="acc-sync-now">⟳ 同步状态</button>' +
         '<button type="button" id="acc-logout">↩ 退出登录</button>';
       document.getElementById('acc-sync-now').onclick = async function () {
         menu.classList.add('hidden');
