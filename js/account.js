@@ -5,6 +5,12 @@
  */
 window.Account = (function () {
   'use strict';
+
+  // ===== 运行模式开关 =====
+  // false = 纯本地模式：数据只存 IndexedDB，隐藏登录与云同步入口（当前选择）。
+  // true  = 恢复云端同步：需配置好下方 Supabase 密钥并部署 wander-api Edge Function。
+  const CLOUD_ENABLED = false;
+
   // ====================== 👉这里改成你自己的值======================
   const SUPABASE_URL = "https://dxvyfkiachwawwsfhgve.supabase.co";
   const EDGE_API = "https://dxvyfkiachwawwsfhgve.supabase.co/functions/v1/wander-api";
@@ -304,6 +310,12 @@ window.Account = (function () {
   }
   async function init(h) {
     hooks = h || {};
+    if (!CLOUD_ENABLED) {
+      // 纯本地模式：不创建 Supabase 客户端，隐藏账户入口
+      var accBtn = document.getElementById('btn-account');
+      if (accBtn) accBtn.style.display = 'none';
+      return;
+    }
     supabase = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
     bindDom();
     setUI();
@@ -323,6 +335,6 @@ window.Account = (function () {
     pushNow: pushNow,
     noteDelete: noteDelete,
     getUser: function () { return user; },
-    backend: true
+    backend: CLOUD_ENABLED
   };
 })();

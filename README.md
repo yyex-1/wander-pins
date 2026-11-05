@@ -63,13 +63,14 @@ tree1/
 └── backend/                FastAPI + Supabase 版本（仅 3 个 auth 路由，非当前主线）
 ```
 
-**三套后端的关系，一句话讲清：**
+**运行模式（`js/account.js` 顶部的 `CLOUD_ENABLED` 开关）：**
 
-| 组件 | 定位 | 现状 |
-|---|---|---|
-| `server.py` | 零依赖（仅标准库）本地账户服务 + 静态托管，SQLite 存账户 | 可用，适合本地演示与无公网场景 |
-| Supabase Auth + Edge Function | 公网部署时的登录与数据同步 | **主线**，线上走这条 |
-| `backend/` (FastAPI) | 早期尝试，只有 register/login/me | 事实废弃，保留备查 |
+| 模式 | 说明 |
+|---|---|
+| **纯本地（当前默认）** | `CLOUD_ENABLED = false`。不连接任何后端，数据只存 IndexedDB，登录与云同步入口隐藏。`server.py` 仍可作为本地账户服务备选 |
+| 云同步（可选） | `CLOUD_ENABLED = true`。登录走 Supabase Auth，数据读写走 Edge Function `wander-api`，需自行配置密钥与函数 |
+
+设计原则：**本地优先**。云端同步是可选的增强，不是前提——关掉它应用功能完整、离线可用。
 
 ---
 
@@ -141,5 +142,8 @@ js/app.js  ──写──>  IndexedDB（js/db.js）  ←── 唯一数据源�
 - 安全：将 `.env`、`footprints.db`、`__pycache__`、`.idea` 移出版本控制，新增 `.gitignore` 与 `.env.example`
 - 依赖：Leaflet / topojson / Supabase JS / world-atlas / 全国省界本地化，断网可演示
 - 修复：`Natural Earth admin-1` 数据源改为国内可达的 jsDelivr 优先
+- 修复：云端同步两处致命 bug（supabase-js v1 接口残留导致调用即抛错；同步请求缺 `Authorization` 头被网关 401）
+- 修复：OAuth 回跳由写死域名改为 `window.location.origin`，本地与线上均可登录
+- 模式：新增 `CLOUD_ENABLED` 开关，默认纯本地模式（隐藏登录与云同步），云端作为可选增强
 
 （更早的提交历史见 `git log`）
