@@ -1,0 +1,8 @@
+{
+  "wx_appid": "",
+  "wx_secret": "",
+  "base_url": "http://127.0.0.1:8138",
+  "port": 8138,
+  "session_secret": "pm-local-test-secret-please-change-in-production",
+  "max_body_mb": 64
+}

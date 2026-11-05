@@ -1,0 +1,232 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>足迹地图 · 全球照片记录</title>
+  <link rel="stylesheet" href="assets/vendor/leaflet/leaflet.css" />
+  <link rel="stylesheet" href="css/style.css?v=15" />
+  <script src="assets/vendor/supabase/supabase.js" onerror="this.onerror=null;this.src='https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2'"></script>
+</head>
+<body>
+  <div id="app">
+    <!-- 侧边栏：记录列表 -->
+    <aside id="sidebar">
+      <div class="sidebar-header">
+        <h1>🌍 足迹地图</h1>
+        <p class="subtitle">导入照片 · 记录时间 · 标记全球任意地点</p>
+        <div class="header-actions">
+          <button id="btn-account" class="btn btn-account" title="登录或注册账户，云端同步数据"></button>
+          <button id="btn-tour" class="btn btn-ghost" title="查看新手入门教程">❓ 教程</button>
+          <button id="btn-locate" class="btn btn-ghost" title="定位到我当前的位置">📍 定位</button>
+          <button id="btn-export" class="btn btn-ghost" title="导出全部记录为备份文件">⬇ 导出</button>
+          <button id="btn-import" class="btn btn-ghost" title="从备份文件导入记录">⬆ 导入</button>
+          <input type="file" id="import-file" accept="application/json,.json" hidden />
+        </div>
+      </div>
+      <div class="sidebar-tip">💡 点击地图添加记录，用颜色分类，翻阅你的旅行日志</div>
+      <div id="record-list" class="record-list"></div>
+      <div class="sidebar-footer">数据保存在本浏览器（IndexedDB）；登录账户后自动云端同步，换设备登录也不丢数据</div>
+    </aside>
+
+    <!-- 地图区域 -->
+    <div id="map-wrap">
+      <div id="map"></div>
+
+      <!-- 搜索与手动定位面板 -->
+      <div id="search-panel" class="search-panel">
+        <div class="search-box">
+          <span class="search-icon">🔍</span>
+          <input type="text" id="search-input" autocomplete="off"
+                 placeholder="搜索地点：北京 / 东京塔 / Eiffel Tower…" />
+          <button type="button" id="search-clear" title="清空" hidden>✕</button>
+        </div>
+        <div id="search-results" class="search-results"></div>
+        <button type="button" id="coord-toggle" class="coord-toggle">
+          🎯 手动输入经纬度 <span class="caret">▾</span>
+        </button>
+        <div id="coord-panel" class="coord-panel hidden">
+          <div class="coord-inputs">
+            <label>纬度
+              <input type="text" id="coord-lat" inputmode="decimal" placeholder="如 39.9042（-90 ~ 90）" />
+            </label>
+            <label>经度
+              <input type="text" id="coord-lng" inputmode="decimal" placeholder="如 116.4074（-180 ~ 180）" />
+            </label>
+          </div>
+          <div class="coord-actions">
+            <button type="button" id="coord-go" class="btn btn-small">📍 前往</button>
+            <button type="button" id="coord-add" class="btn btn-small btn-primary">＋ 在此添加记录</button>
+          </div>
+        </div>
+      </div>
+
+      <!-- 分类图例 -->
+      <div id="legend" class="legend">
+        <button type="button" id="legend-toggle" class="legend-toggle">🏷 分类图例 <span id="legend-caret">▾</span></button>
+        <div id="legend-list" class="legend-list"></div>
+      </div>
+
+      <div id="coords" class="coords-bar">经纬度：--</div>
+    </div>
+
+    <button id="sidebar-toggle" title="列表">☰</button>
+  </div>
+
+  <!-- 添加 / 编辑记录弹窗 -->
+  <div id="modal" class="modal hidden">
+    <div class="modal-card">
+      <div class="modal-header">
+        <h2 id="modal-title">新增记录</h2>
+        <button id="modal-close" class="modal-x" title="关闭">✕</button>
+      </div>
+
+      <form id="record-form">
+        <div class="form-row">
+          <label>位置</label>
+          <div id="form-coords" class="form-coords">--</div>
+        </div>
+
+        <div class="form-row">
+          <label for="f-title">标题</label>
+          <input type="text" id="f-title" maxlength="60" placeholder="例如：东京塔 / 丽江古城" />
+        </div>
+
+        <div class="form-row">
+          <label for="f-time">时间</label>
+          <div class="time-row">
+            <input type="datetime-local" id="f-time" step="1" />
+            <button type="button" id="btn-now" class="btn btn-small">现在</button>
+          </div>
+        </div>
+
+        <div class="form-row" id="f-category-row">
+          <label>分类与颜色</label>
+          <div id="palette" class="palette"></div>
+          <div class="cat-row">
+            <input type="color" id="f-color" value="#e4572e" title="自定义颜色" />
+            <input type="text" id="f-category" maxlength="20" list="cat-suggestions"
+                   placeholder="分类名称：美食 / 自然 / 城市……" />
+            <datalist id="cat-suggestions"></datalist>
+          </div>
+        </div>
+
+        <div class="form-row" id="f-scale-row">
+          <label>变色尺度<span class="scale-hint">按面积统一体量：省≈15万km² · 市≈1.5万 · 县≈2千 · 镇≈250</span></label>
+          <div id="scale-buttons" class="scale-row">
+            <button type="button" data-scale="auto">跟随缩放</button>
+            <button type="button" data-scale="1">国家</button>
+            <button type="button" data-scale="2">省 / 州</button>
+            <button type="button" data-scale="3">市</button>
+            <button type="button" data-scale="4">县 / 区</button>
+            <button type="button" data-scale="5">镇</button>
+          </div>
+        </div>
+
+        <div class="form-row">
+          <label>照片</label>
+          <div id="dropzone" class="dropzone">
+            <input type="file" id="f-images" accept="image/*" multiple hidden />
+            <div class="dropzone-hint">📷 点击此处选择本地图片，或将图片直接拖拽到这里<br /><span>支持一次选多张：JPG / PNG / WebP / HEIC 等，图片仅保存在本机</span></div>
+          </div>
+          <div id="preview-list" class="preview-list"></div>
+        </div>
+
+        <div class="form-row">
+          <label for="f-note">备注</label>
+          <textarea id="f-note" rows="3" maxlength="500" placeholder="记录当时的故事……"></textarea>
+        </div>
+
+        <div class="form-actions">
+          <button type="button" id="btn-delete" class="btn btn-danger hidden">删除</button>
+          <span class="spacer"></span>
+          <button type="button" id="btn-cancel" class="btn">取消</button>
+          <button type="submit" class="btn btn-primary">保存</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- 旅行日志详情视图 -->
+  <div id="journal" class="journal hidden">
+    <div class="journal-card">
+      <button id="journal-close" class="journal-x" title="关闭 (Esc)">✕</button>
+      <div class="journal-body">
+        <div class="journal-photos">
+          <div class="jp-stage">
+            <img id="jp-img" class="hidden" alt="照片" />
+            <div id="jp-empty" class="jp-empty">📷 这个地点还没有照片<br><span>点「编辑」即可添加</span></div>
+            <button type="button" id="jp-prev" class="jp-nav jp-prev hidden" title="上一张 (←)">‹</button>
+            <button type="button" id="jp-next" class="jp-nav jp-next hidden" title="下一张 (→)">›</button>
+            <span id="jp-count" class="jp-count hidden"></span>
+          </div>
+          <div id="jp-strip" class="jp-strip hidden"></div>
+        </div>
+        <div class="journal-info">
+          <div class="ji-category"><span id="ji-cat-dot" class="ji-cat-dot"></span><span id="ji-cat-name">未分类</span></div>
+          <div id="ji-date" class="ji-date"></div>
+          <h2 id="ji-title" class="ji-title"></h2>
+          <div id="ji-meta" class="ji-meta"></div>
+          <div id="ji-note" class="ji-note"></div>
+          <div class="ji-actions">
+            <button type="button" id="ji-prev-rec" class="btn btn-small">← 上一篇</button>
+            <button type="button" id="ji-next-rec" class="btn btn-small">下一篇 →</button>
+            <span class="spacer"></span>
+            <button type="button" id="ji-edit" class="btn btn-small">✏️ 编辑</button>
+            <button type="button" id="ji-del" class="btn btn-small btn-danger">🗑 删除</button>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div id="toast" class="toast"></div>
+
+  <!-- 账户下拉菜单（登录后显示） -->
+  <div id="account-menu" class="account-menu hidden"></div>
+
+<div id="account-modal" class="modal hidden">
+  <div class="modal-card">
+    <div class="modal-head">
+      <span id="acc-title">GitHub登录</span>
+      <button id="acc-x">×</button>
+    </div>
+    <div style="padding: 24px; text-align: center;">
+      <p style="margin: 0 0 20px 0; color: #666; font-size: 14px;">
+        使用GitHub账号授权登录，足迹数据云端自动同步
+      </p>
+      <button id="btn-github-login" style="width: 100%; padding: 12px; background: #24292e; color: #fff; border: none; border-radius: 6px; font-size: 15px; cursor: pointer; font-weight: 500;">
+        ⭐ 使用GitHub一键登录
+      </button>
+      <div id="acc-err" style="color: #e53e3e; margin-top: 15px; font-size: 13px;"></div>
+    </div>
+  </div>
+</div>
+
+
+  <!-- 新手引导教程 -->
+  <div id="tour" class="tour hidden">
+    <div id="tour-spot"></div>
+    <div id="tour-pop" class="tour-pop">
+      <div class="tour-head">
+        <span id="tour-emoji">👋</span>
+        <h3 id="tour-title">欢迎使用足迹地图</h3>
+      </div>
+      <p id="tour-content"></p>
+      <div class="tour-foot">
+        <span id="tour-progress" class="tour-progress"></span>
+        <span class="tour-spacer"></span>
+        <button type="button" id="tour-skip" class="btn btn-small">跳过</button>
+        <button type="button" id="tour-prev" class="btn btn-small hidden">上一步</button>
+        <button type="button" id="tour-next" class="btn btn-small btn-primary">开始使用</button>
+      </div>
+    </div>
+  </div>
+
+  <script src="assets/vendor/leaflet/leaflet.js" onerror="this.onerror=null;this.src='https://unpkg.com/leaflet@1.9.4/dist/leaflet.js'"></script>
+  <script src="assets/vendor/topojson/topojson-client.min.js" onerror="this.onerror=null;this.src='https://unpkg.com/topojson-client@3/dist/topojson-client.min.js'"></script>
+  <script src="js/db.js?v=4"></script>
+  <script src="js/account.js?v=100"></script>
+  <script src="js/app.js?v=18"></script>
+</body>
+</html>
