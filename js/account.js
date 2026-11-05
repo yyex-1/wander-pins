@@ -274,10 +274,12 @@ window.Account = (function () {
       const { error } = await supabase.auth.signInWithOAuth({
         provider: 'github',
         options: {
-          // 回跳到当前站点而不是写死的域名：本地 127.0.0.1 与线上 Netlify 都能完成登录。
-          // 两个地址都要加进 Supabase 控制台 -> Authentication -> URL Configuration -> Redirect URLs 白名单，
-          // 否则授权完成会被 Supabase 拒绝回跳。
-          redirectTo: window.location.origin
+          // 回跳到当前站点而不是写死的域名：本地 127.0.0.1、GitHub Pages 子路径、
+          // 以及任意自定义域名都能完成登录。
+          // 注意 GitHub Pages 部署在 /wander-pins/ 子路径下，所以 origin 之外还要带上 pathname，
+          // 否则回调会落到站点根目录 404。所有线上地址都要加进
+          // Supabase 控制台 -> Authentication -> URL Configuration -> Redirect URLs 白名单。
+          redirectTo: window.location.origin + window.location.pathname.replace(/index\.html?$/, '')
         }
       });
       if (error) {
