@@ -43,9 +43,11 @@ window.Account = (function () {
   function uid() {
     return Date.now().toString(36) + Math.random().toString(36).slice(2, 9);
   }
-  function getAuthToken() {
-    const sess = supabase.auth.session();
-    return sess?.access_token || null;
+  // supabase-js v2 的 session 是异步接口；v1 的 auth.session() 在 v2 已被移除，
+  // 旧写法会直接抛 "supabase.auth.session is not a function"，导致同步永远失败。
+  async function getAuthToken() {
+    const { data } = await supabase.auth.getSession();
+    return data && data.session ? data.session.access_token : null;
   }
   // 记录统一形态：images[].blob 必须是 Blob（云端来的只有 dataUrl）
   function toLocalRec(r) {
@@ -130,11 +132,17 @@ window.Account = (function () {
   }
   // 调用 edge‑function 获取云端全部记录 + 删除墓碑
   async function fetchCloudData() {
-    const token = getAuthToken();
+    const token = await getAuthToken();
     if (!token) throw new Error("未登录");
     const resp = await fetch(EDGE_API, {
       method: "POST",
-      headers: { "Content-Type": "application/json" },
+      // Supabase 网关开启 verify_jwt 后，缺少 Authorization 头会在函数执行前直接 401，
+      // 因此令牌既放在 body.token（函数内使用），也要放在请求头（网关校验）。
+      headers: {
+        "Content-Type": "application/json",
+        "Authorization": "Bearer " + token,
+        "apikey": SUPABASE_ANON_KEY
+      },
       body: JSON.stringify({ token, action: "get_sync_data", payload: {} })
     });
     if (!resp.ok) throw new Error("HTTP " + resp.status);
@@ -142,14 +150,20 @@ window.Account = (function () {
   }
   // 推送本地快照到云端
   async function pushSnapshot() {
-    const token = getAuthToken();
+    const token = await getAuthToken();
     if (!token) throw new Error("未登录");
     var all = await DB.all();
     var payload = [];
     for (var i = 0; i < all.length; i++) payload.push(await toCloudRec(all[i]));
     const resp = await fetch(EDGE_API, {
       method: "POST",
-      headers: { "Content-Type": "application/json" },
+      // Supabase 网关开启 verify_jwt 后，缺少 Authorization 头会在函数执行前直接 401，
+      // 因此令牌既放在 body.token（函数内使用），也要放在请求头（网关校验）。
+      headers: {
+        "Content-Type": "application/json",
+        "Authorization": "Bearer " + token,
+        "apikey": SUPABASE_ANON_KEY
+      },
       body: JSON.stringify({
         token,
         action: "sync_upload",
