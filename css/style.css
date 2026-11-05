@@ -922,3 +922,66 @@ body {
 @media (max-width: 480px) {
   .acc-card { width: 100vw; height: auto; max-height: 100dvh; }
 }
+
+/* ---------- 统计面板与分享海报 ---------- */
+.stats-card { max-width: 560px; width: 92vw; max-height: 86vh; overflow-y: auto; }
+
+.stats-body { padding: 16px 20px 20px; }
+
+.stats-grid {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 10px;
+  margin-bottom: 18px;
+}
+
+.stat-item {
+  background: #f1f5f9;
+  border-radius: 10px;
+  padding: 12px 6px;
+  text-align: center;
+}
+
+.stat-num { font-size: 24px; font-weight: 700; color: #2563eb; }
+
+.stat-label { font-size: 12px; color: #64748b; margin-top: 2px; }
+
+.stats-sec { margin-bottom: 14px; }
+
+.stats-sec h3 { font-size: 14px; color: #1f2933; margin-bottom: 8px; }
+
+.stats-chips { display: flex; flex-wrap: wrap; gap: 6px; }
+
+.chip {
+  font-size: 12px;
+  padding: 4px 10px;
+  border-radius: 999px;
+  background: #f8fafc;
+  color: #334155;
+  border: 1px solid #e2e8f0;
+}
+
+.chip-dot {
+  display: inline-block;
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  margin-right: 5px;
+  vertical-align: 1px;
+}
+
+.stats-empty { color: #94a3b8; font-size: 13px; padding: 4px 0; }
+
+.stats-poster-wrap { margin-top: 18px; }
+
+.poster-canvas {
+  width: 100%;
+  max-width: 300px;
+  border-radius: 14px;
+  box-shadow: 0 10px 30px rgba(0, 0, 0, .25);
+  display: block;
+  margin: 0 auto 12px;
+  background: #0b1220;
+}
+
+.stats-poster-actions { display: flex; gap: 8px; justify-content: center; }

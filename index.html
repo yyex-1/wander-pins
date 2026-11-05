@@ -5,7 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>足迹地图 · 全球照片记录</title>
   <link rel="stylesheet" href="assets/vendor/leaflet/leaflet.css" />
-  <link rel="stylesheet" href="css/style.css?v=15" />
+  <link rel="stylesheet" href="css/style.css?v=16" />
   <script src="assets/vendor/supabase/supabase.js" onerror="this.onerror=null;this.src='https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2'"></script>
 </head>
 <body>
@@ -19,6 +19,7 @@
           <button id="btn-account" class="btn btn-account" title="登录或注册账户，云端同步数据"></button>
           <button id="btn-tour" class="btn btn-ghost" title="查看新手入门教程">❓ 教程</button>
           <button id="btn-locate" class="btn btn-ghost" title="定位到我当前的位置">📍 定位</button>
+          <button id="btn-stats" class="btn btn-ghost" title="查看足迹统计与生成分享海报">📊 统计</button>
           <button id="btn-export" class="btn btn-ghost" title="导出全部记录为备份文件">⬇ 导出</button>
           <button id="btn-import" class="btn btn-ghost" title="从备份文件导入记录">⬆ 导入</button>
           <input type="file" id="import-file" accept="application/json,.json" hidden />
@@ -204,6 +205,29 @@
 </div>
 
 
+  <!-- 统计面板与分享海报 -->
+  <div id="stats-modal" class="modal hidden">
+    <div class="modal-card stats-card">
+      <div class="modal-header">
+        <h2>📊 足迹统计</h2>
+        <button id="stats-close" class="modal-x" title="关闭">✕</button>
+      </div>
+      <div class="stats-body">
+        <div id="stats-grid" class="stats-grid"></div>
+        <div class="stats-sec"><h3>🌏 到访国家 / 地区</h3><div id="stats-countries" class="stats-chips"></div></div>
+        <div class="stats-sec"><h3>🇨🇳 中国省份</h3><div id="stats-provinces" class="stats-chips"></div></div>
+        <div class="stats-sec"><h3>🗺️ 境外省 / 州</h3><div id="stats-states" class="stats-chips"></div></div>
+        <div class="stats-poster-wrap">
+          <canvas id="poster-canvas" class="poster-canvas" width="1080" height="1920"></canvas>
+          <div class="stats-poster-actions">
+            <button id="btn-poster" class="btn">🖼 重新生成</button>
+            <button id="btn-poster-dl" class="btn btn-primary">⬇ 下载海报 PNG</button>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
   <!-- 新手引导教程 -->
   <div id="tour" class="tour hidden">
     <div id="tour-spot"></div>
@@ -227,6 +251,6 @@
   <script src="assets/vendor/topojson/topojson-client.min.js" onerror="this.onerror=null;this.src='https://unpkg.com/topojson-client@3/dist/topojson-client.min.js'"></script>
   <script src="js/db.js?v=4"></script>
   <script src="js/account.js?v=104"></script>
-  <script src="js/app.js?v=18"></script>
+  <script src="js/app.js?v=19"></script>
 </body>
 </html>

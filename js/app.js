@@ -2365,5 +2365,325 @@
     }
   }
 
+  /* ================= 统计面板与分享海报 ================= */
+
+  // ISO 3166-1 数字码 → 大洲（按大洲分组，启动时展开为单码映射）
+  const CONTINENT_GROUPS = {
+    '亚洲': '004 031 048 050 051 064 086 096 104 116 144 156 158 268 275 344 356 360 364 368 376 392 398 400 408 410 414 417 418 422 446 458 462 496 512 524 586 608 626 634 682 702 704 762 764 784 792 795 860 887',
+    '欧洲': '008 020 040 056 070 100 112 191 196 203 208 233 234 246 248 250 276 292 300 336 348 352 372 380 428 438 440 442 470 492 498 499 528 578 616 620 642 643 674 688 703 705 724 744 752 756 804 807 826 831 832 833',
+    '非洲': '012 024 072 108 120 132 140 148 174 175 178 180 204 226 231 232 262 266 270 288 324 384 404 426 430 434 450 454 466 478 480 504 508 516 624 638 646 654 678 686 690 694 706 710 716 728 729 732 748 818 834 854 894',
+    '北美洲': '028 044 052 060 084 092 124 136 188 192 212 214 222 304 308 312 320 332 340 388 474 484 500 531 533 534 558 591 630 652 659 660 662 663 666 670 796 840 850',
+    '南美洲': '032 068 076 170 218 238 254 328 600 604 740 862',
+    '大洋洲': '016 036 090 162 166 184 242 258 296 316 540 548 554 570 574 580 581 583 584 585 598 612 776 780 798 876 882',
+    '南极洲': '010 074 239 260 334'
+  };
+  const CONTINENT_BY_ID = {};
+  Object.keys(CONTINENT_GROUPS).forEach(function (c) {
+    CONTINENT_GROUPS[c].split(' ').forEach(function (id) { CONTINENT_BY_ID[id] = c; });
+  });
+
+  function continentOf(f) {
+    if (f && f.id != null) {
+      const key = ('00' + String(f.id)).slice(-3);
+      return CONTINENT_BY_ID[key] || null;
+    }
+    return null;
+  }
+
+  let statsCache = null;   // { stamp, data }：records 未变化时直接复用
+  function statsStamp() {
+    return records.length + ':' + (records.length ? records[records.length - 1].id : '');
+  }
+
+  // 从 records 派生统计：只读，不写任何数据结构。
+  // 国家/省份解析全部走 resolveXxxRegion 的既有缓存（regionData.rec*），开销极小。
+  async function computeStats() {
+    if (statsCache && statsCache.stamp === statsStamp()) return statsCache.data;
+    const countries = new Map();     // 国名 -> { name, feature, color }
+    const provinces = new Map();     // adcode -> { name, feature, color }（中国省份）
+    const foreignStates = new Map(); // 境外省/州名 -> { name }
+    for (const rec of records) {
+      try {
+        const cr = await resolveCountryRegion(rec);
+        if (cr && cr.feature) {
+          const name = countryNameOf(cr.feature) || String(cr.feature.id || '未知');
+          if (!countries.has(name)) countries.set(name, { name: name, feature: cr.feature, color: recColor(rec) });
+        }
+        if (inChina(rec.lng, rec.lat)) {
+          const pr = await resolveProvinceRegion(rec);
+          if (pr && pr.feature) {
+            const name = (pr.feature.properties && pr.feature.properties.name) || pr.adcode;
+            if (!provinces.has(pr.adcode)) provinces.set(pr.adcode, { name: name, feature: pr.feature, color: recColor(rec) });
+          }
+        } else {
+          const fr = await resolveForeignRegion(rec);
+          if (fr && fr.feature && fr.key && fr.key.indexOf('a1:') === 0) {
+            const pr = fr.feature.properties || {};
+            const name = pr.name_en || pr.name || pr.iso_3166_2 || '';
+            if (name && !foreignStates.has(name)) foreignStates.set(name, { name: name });
+          }
+        }
+      } catch (e) { /* 单条解析失败不影响整体统计 */ }
+    }
+    const continents = new Set();
+    countries.forEach(function (c) {
+      const ct = continentOf(c.feature);
+      if (ct) continents.add(ct);
+    });
+    const data = {
+      total: records.length,
+      countries: countries,
+      provinces: provinces,
+      foreignStates: foreignStates,
+      continents: continents,
+      stateCount: provinces.size + foreignStates.size
+    };
+    statsCache = { stamp: statsStamp(), data: data };
+    return data;
+  }
+
+  // ---------- 统计面板 UI ----------
+  const statsModal = document.getElementById('stats-modal');
+
+  function chipEl(name, color) {
+    const el = document.createElement('span');
+    el.className = 'chip';
+    if (color) {
+      const dot = document.createElement('i');
+      dot.className = 'chip-dot';
+      dot.style.background = color;
+      el.appendChild(dot);
+    }
+    el.appendChild(document.createTextNode(name));
+    return el;
+  }
+
+  function fillChips(containerId, map, withColor) {
+    const box = document.getElementById(containerId);
+    box.textContent = '';
+    if (!map.size) {
+      const empty = document.createElement('div');
+      empty.className = 'stats-empty';
+      empty.textContent = '— 暂无数据 —';
+      box.appendChild(empty);
+      return;
+    }
+    map.forEach(function (v) {
+      box.appendChild(chipEl(v.name, withColor ? v.color : null));
+    });
+  }
+
+  let lastStats = null;
+
+  async function openStats() {
+    statsModal.classList.remove('hidden');
+    const grid = document.getElementById('stats-grid');
+    grid.innerHTML = '<div class="stats-empty">统计中…</div>';
+    const s = await computeStats();
+    lastStats = s;
+    const items = [
+      { n: s.total, l: '足迹记录' },
+      { n: s.continents.size, l: '大洲' },
+      { n: s.countries.size, l: '国家 / 地区' },
+      { n: s.stateCount, l: '省份 / 州' }
+    ];
+    grid.textContent = '';
+    items.forEach(function (it) {
+      const div = document.createElement('div');
+      div.className = 'stat-item';
+      const num = document.createElement('div');
+      num.className = 'stat-num';
+      num.textContent = String(it.n);
+      const lab = document.createElement('div');
+      lab.className = 'stat-label';
+      lab.textContent = it.l;
+      div.appendChild(num);
+      div.appendChild(lab);
+      grid.appendChild(div);
+    });
+    fillChips('stats-countries', s.countries, true);
+    fillChips('stats-provinces', s.provinces, true);
+    fillChips('stats-states', s.foreignStates, false);
+    renderPoster(s);
+  }
+
+  function closeStats() { statsModal.classList.add('hidden'); }
+
+  document.getElementById('btn-stats').addEventListener('click', openStats);
+  document.getElementById('stats-close').addEventListener('click', closeStats);
+  statsModal.addEventListener('click', function (e) { if (e.target === statsModal) closeStats(); });
+
+  // ---------- 分享海报（1080×1920 Canvas，离线绘制，无外部依赖） ----------
+  function traceFeature(ctx, geom, px, py, maxW) {
+    const polys = geom.type === 'Polygon' ? [geom.coordinates] : geom.coordinates;
+    ctx.beginPath();
+    for (const poly of polys) {
+      for (const ring of poly) {
+        let prevX = null;
+        for (let i = 0; i < ring.length; i++) {
+          const x = px(ring[i][0]), y = py(ring[i][1]);
+          // 跨 180° 经度跳变时断开路径，避免横穿线
+          if (prevX === null || Math.abs(x - prevX) > maxW / 2) ctx.moveTo(x, y);
+          else ctx.lineTo(x, y);
+          prevX = x;
+        }
+        ctx.closePath();
+      }
+    }
+  }
+
+  function wrapText(ctx, text, maxW) {
+    const lines = [];
+    let line = '';
+    for (const ch of text) {
+      if (ctx.measureText(line + ch).width > maxW && line) { lines.push(line); line = ch; }
+      else line += ch;
+    }
+    if (line) lines.push(line);
+    return lines;
+  }
+
+  async function renderPoster(s) {
+    const W = 1080, H = 1920;
+    const cv = document.getElementById('poster-canvas');
+    cv.width = W; cv.height = H;
+    const ctx = cv.getContext('2d');
+
+    // 背景
+    const bg = ctx.createLinearGradient(0, 0, 0, H);
+    bg.addColorStop(0, '#0b1220');
+    bg.addColorStop(1, '#13233f');
+    ctx.fillStyle = bg;
+    ctx.fillRect(0, 0, W, H);
+
+    // 标题区
+    ctx.textAlign = 'center';
+    ctx.fillStyle = '#f8fafc';
+    ctx.font = 'bold 64px "PingFang SC", "Microsoft YaHei", sans-serif';
+    ctx.fillText('我的世界足迹', W / 2, 200);
+    const d = new Date();
+    const dateStr = d.getFullYear() + '.' + String(d.getMonth() + 1).padStart(2, '0') + '.' + String(d.getDate()).padStart(2, '0');
+    ctx.fillStyle = '#94a3b8';
+    ctx.font = '28px "PingFang SC", "Microsoft YaHei", sans-serif';
+    ctx.fillText('共 ' + s.total + ' 条足迹 · 生成于 ' + dateStr, W / 2, 258);
+
+    // 地图区（等距圆柱投影，纬度裁剪到 84°N ~ 58°S）
+    const MX = 60, MY = 340, MW = W - 120, MH = 880;
+    const LAT_T = 84, LAT_B = -58;
+    function px(lng) { return MX + (wrapLng(lng) + 180) / 360 * MW; }
+    function py(lat) { return MY + (LAT_T - lat) / (LAT_T - LAT_B) * MH; }
+
+    // 海洋底色 + 经纬网
+    ctx.fillStyle = '#0f1b30';
+    ctx.fillRect(MX, MY, MW, MH);
+    ctx.strokeStyle = 'rgba(148,163,184,.10)';
+    ctx.lineWidth = 1;
+    for (let lng = -180; lng <= 180; lng += 30) {
+      ctx.beginPath(); ctx.moveTo(px(lng), MY); ctx.lineTo(px(lng), MY + MH); ctx.stroke();
+    }
+    for (let lat = -60; lat <= 80; lat += 20) {
+      ctx.beginPath(); ctx.moveTo(MX, py(lat)); ctx.lineTo(MX + MW, py(lat)); ctx.stroke();
+    }
+
+    // 世界底图：全部国家画底色，到访过的染记录色
+    const fc = await ensureCountries();
+    if (fc) {
+      const visited = new Set();
+      s.countries.forEach(function (c) { visited.add(c.feature); });
+      // 底色层
+      ctx.save();
+      ctx.beginPath(); ctx.rect(MX, MY, MW, MH); ctx.clip();
+      ctx.fillStyle = '#1d2b47';
+      ctx.strokeStyle = 'rgba(11,18,32,.6)';
+      ctx.lineWidth = 1;
+      for (const f of fc.features) {
+        if (!f.geometry) continue;
+        traceFeature(ctx, f.geometry, px, py, MW);
+        ctx.fill('evenodd');
+        ctx.stroke();
+      }
+      // 染色层
+      for (const f of fc.features) {
+        if (!f.geometry || !visited.has(f)) continue;
+        let color = '#38bdf8';
+        s.countries.forEach(function (c) { if (c.feature === f) color = c.color; });
+        ctx.fillStyle = color;
+        ctx.globalAlpha = .92;
+        traceFeature(ctx, f.geometry, px, py, MW);
+        ctx.fill('evenodd');
+        ctx.globalAlpha = 1;
+      }
+      // 中国到访省份高亮
+      const provFc = await ensureChinaProvinces();
+      if (provFc && s.provinces.size) {
+        for (const f of provFc.features) {
+          const ad = f.properties && f.properties.adcode;
+          if (!s.provinces.has(ad)) continue;
+          ctx.fillStyle = s.provinces.get(ad).color;
+          ctx.globalAlpha = .95;
+          traceFeature(ctx, f.geometry, px, py, MW);
+          ctx.fill('evenodd');
+          ctx.globalAlpha = 1;
+        }
+      }
+      ctx.restore();
+    }
+    // 地图边框
+    ctx.strokeStyle = 'rgba(148,163,184,.3)';
+    ctx.lineWidth = 2;
+    ctx.strokeRect(MX, MY, MW, MH);
+
+    // 统计行（四列）
+    const items = [
+      { n: s.total, l: '足迹记录' },
+      { n: s.continents.size, l: '大洲' },
+      { n: s.countries.size, l: '国家' },
+      { n: s.stateCount, l: '省份 / 州' }
+    ];
+    const colW = W / 4;
+    items.forEach(function (it, i) {
+      const cx = colW * i + colW / 2;
+      ctx.fillStyle = '#38bdf8';
+      ctx.font = 'bold 60px "PingFang SC", "Microsoft YaHei", sans-serif';
+      ctx.fillText(String(it.n), cx, 1352);
+      ctx.fillStyle = '#94a3b8';
+      ctx.font = '26px "PingFang SC", "Microsoft YaHei", sans-serif';
+      ctx.fillText(it.l, cx, 1398);
+    });
+
+    // 到访国家名单（最多 3 行）
+    const names = [];
+    s.countries.forEach(function (c) { names.push(c.name); });
+    ctx.textAlign = 'left';
+    ctx.fillStyle = '#cbd5e1';
+    ctx.font = '26px "PingFang SC", "Microsoft YaHei", sans-serif';
+    const lines = wrapText(ctx, names.join(' · '), W - 140).slice(0, 3);
+    lines.forEach(function (ln, i) {
+      ctx.fillText(ln + (i === 2 && names.join(' · ').length > lines.join('').length ? ' …' : ''), 70, 1480 + i * 44);
+    });
+
+    // 页脚
+    ctx.textAlign = 'center';
+    ctx.fillStyle = '#64748b';
+    ctx.font = '24px "PingFang SC", "Microsoft YaHei", sans-serif';
+    ctx.fillText('wander-pins · 用地图收藏每一次出发', W / 2, 1866);
+  }
+
+  document.getElementById('btn-poster').addEventListener('click', function () {
+    if (lastStats) renderPoster(lastStats);
+    else toast('请先打开统计面板');
+  });
+  document.getElementById('btn-poster-dl').addEventListener('click', function () {
+    const cv = document.getElementById('poster-canvas');
+    cv.toBlob(function (blob) {
+      const a = document.createElement('a');
+      a.href = URL.createObjectURL(blob);
+      a.download = '我的足迹海报.png';
+      a.click();
+      setTimeout(function () { URL.revokeObjectURL(a.href); }, 3000);
+      toast('海报已保存');
+    }, 'image/png');
+  });
+
   boot();
 })();
