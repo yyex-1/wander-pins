@@ -12,7 +12,7 @@ window.Account = (function () {
   // Publishable Key 设计上就是公开的（靠 RLS 保护），可以留在前端；
   // 真正不能进仓库的是 service_role / Secret Key，只存在于服务端 .env。
   const SUPABASE_ANON_KEY = "sb_publishable_UXRP2ODwiC2vPRhV5LPj1A_HWgF-WIY";
-  const REDIRECT_URL = "https://capable-fenglisu-ee9970.netlify.app";
+  // REDIRECT_URL 已废弃：改用 window.location.origin 动态回跳（见 loginWithGithub）
   // =================================================================
   let supabase = null;
   var user = null;
@@ -258,7 +258,10 @@ window.Account = (function () {
       const { error } = await supabase.auth.signInWithOAuth({
         provider: 'github',
         options: {
-          redirectTo: REDIRECT_URL
+          // 回跳到当前站点而不是写死的域名：本地 127.0.0.1 与线上 Netlify 都能完成登录。
+          // 两个地址都要加进 Supabase 控制台 -> Authentication -> URL Configuration -> Redirect URLs 白名单，
+          // 否则授权完成会被 Supabase 拒绝回跳。
+          redirectTo: window.location.origin
         }
       });
       if (error) {
