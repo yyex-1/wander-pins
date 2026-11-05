@@ -8,8 +8,11 @@ window.Account = (function () {
   // ====================== 👉这里改成你自己的值======================
   const SUPABASE_URL = "https://dxvyfkiachwawwsfhgve.supabase.co";
   const EDGE_API = "https://dxvyfkiachwawwsfhgve.supabase.co/functions/v1/wander-api";
-  const SUPABASE_ANON_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImR4dnlma2lhY2h3YXd3c2ZoZ3ZlIiwicm9sZSI6ImFub24iLCJpYXQiOjE3OTIwNDMyNDQsImV4cCI6MjEwNzYxOTI0NH0.4Fwty8wXeR8uWHLG7IoccOorjXQTzxxH7I7l5IFgxtQ";
-  const REDIRECT_URL = "capable-fenglisu-ee9970.netlify.app"; // 👉 改成你的Netlify网址
+  // 2026-11-05：由旧版 anon JWT 换为新版 Publishable Key。
+  // Publishable Key 设计上就是公开的（靠 RLS 保护），可以留在前端；
+  // 真正不能进仓库的是 service_role / Secret Key，只存在于服务端 .env。
+  const SUPABASE_ANON_KEY = "sb_publishable_UXRP2ODwiC2vPRhV5LPj1A_HWgF-WIY";
+  const REDIRECT_URL = "https://capable-fenglisu-ee9970.netlify.app";
   // =================================================================
   let supabase = null;
   var user = null;
